@@ -1,13 +1,16 @@
 """
 Copyright © 2023 Howard Hughes Medical Institute, Authored by Carsen Stringer and Marius Pachitariu.
 """
+
 import string
+
 import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.transforms as mtransforms
 import numpy as np
 from matplotlib import rcParams
 from matplotlib.colors import ListedColormap
+
 from cellpose import utils
 
 default_font = 12
@@ -22,6 +25,7 @@ rcParams["font.size"] = default_font
 ltr = string.ascii_lowercase
 fs_title = 16
 weight_title = "normal"
+
 
 def plot_label(ltr, il, ax, trans, fs_title=20):
     ax.text(

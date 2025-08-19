@@ -1,23 +1,24 @@
 """
 Copyright © 2023 Howard Hughes Medical Institute, Authored by Carsen Stringer and Marius Pachitariu.
 """
-import time
-import numpy as np
-from tqdm import trange
-import matplotlib.pyplot as plt
-from pathlib import Path
-from cellpose import transforms, io, metrics
-from cellpose.models import CellposeModel
-
-# uses torch
-import torch
-from torch.utils.data import DataLoader, Dataset
-from torchvision.transforms import v2
-from torch.nn import MSELoss
-from torch.optim import Adam
 
 # PATH TO REPO
 import sys
+import time
+from pathlib import Path
+
+import matplotlib.pyplot as plt
+import numpy as np
+# uses torch
+import torch
+from torch.nn import MSELoss
+from torch.optim import Adam
+from torch.utils.data import DataLoader, Dataset
+from torchvision.transforms import v2
+from tqdm import trange
+
+from cellpose import io, metrics, transforms
+from cellpose.models import CellposeModel
 
 sys.path.append("/github/noise2self/")
 from mask import Masker
@@ -30,13 +31,19 @@ class Cells(Dataset):
 
     def __init__(self, data, xy=(128, 128)):
         self.data = data
-        self.cell_transforms = v2.Compose([
-            v2.RandomRotation(degrees=180),
-            v2.RandomResizedCrop(size=xy, scale=(0.75, 1.25), ratio=(1.0, 1.0),
-                                 antialias=True),
-            v2.RandomHorizontalFlip(p=0.5),
-            v2.ToDtype(torch.float32, scale=True),
-        ])
+        self.cell_transforms = v2.Compose(
+            [
+                v2.RandomRotation(degrees=180),
+                v2.RandomResizedCrop(
+                    size=xy,
+                    scale=(0.75, 1.25),
+                    ratio=(1.0, 1.0),
+                    antialias=True,
+                ),
+                v2.RandomHorizontalFlip(p=0.5),
+                v2.ToDtype(torch.float32, scale=True),
+            ]
+        )
 
     def __len__(self):
         return len(self.data)
@@ -47,16 +54,16 @@ class Cells(Dataset):
 
 
 def train_per_image(img_noisy):
-
-    masker = Masker(width=4, mode='interpolate')
+    masker = Masker(width=4, mode="interpolate")
     torch.cuda.manual_seed(0)
     model = Unet().to(device)
 
     loss_function = MSELoss()
     optimizer = Adam(model.parameters(), lr=5e-4)
 
-    cells_train = Cells(np.tile(img_noisy[np.newaxis, ...], (8, 1, 1, 1)),
-                        xy=(128, 128))
+    cells_train = Cells(
+        np.tile(img_noisy[np.newaxis, ...], (8, 1, 1, 1)), xy=(128, 128)
+    )
     data_loader = DataLoader(cells_train, batch_size=8, shuffle=True)
 
     for ep in range(100):
@@ -80,8 +87,11 @@ def train_per_image(img_noisy):
     model.eval()
     with torch.no_grad():
         simple_output = model(img)
-    out = simple_output.squeeze()[ysub[0]:ysub[-1] + 1,
-                                  xsub[0]:xsub[-1] + 1].cpu().numpy()
+    out = (
+        simple_output.squeeze()[ysub[0] : ysub[-1] + 1, xsub[0] : xsub[-1] + 1]
+        .cpu()
+        .numpy()
+    )
 
     return out
 
@@ -89,12 +99,14 @@ def train_per_image(img_noisy):
 def train_per_image_synthetic(root, ctype="cyto2", plot=False, save=True):
     noise_type = "poisson"
 
-    dat = np.load(root / "noisy_test" / f"test_{noise_type}.npy",
-                  allow_pickle=True).item()
+    dat = np.load(
+        root / "noisy_test" / f"test_{noise_type}.npy", allow_pickle=True
+    ).item()
     test_noisy = dat["test_noisy"]
     test_labels = dat["masks_true"]
-    diam_test = dat["diam_test"] if "diam_test" in dat else 30. * np.ones(
-        len(test_noisy))
+    diam_test = (
+        dat["diam_test"] if "diam_test" in dat else 30.0 * np.ones(len(test_noisy))
+    )
 
     imgs_n2s, masks_n2s = [], []
 
@@ -102,8 +114,13 @@ def train_per_image_synthetic(root, ctype="cyto2", plot=False, save=True):
     for i in trange(len(test_noisy)):
         out = train_per_image(test_noisy[i])
 
-        masks = seg_model.eval(out, diameter=diam_test[i], channels=[1, 0],
-                               channel_axis=0, normalize=True)[0]
+        masks = seg_model.eval(
+            out,
+            diameter=diam_test[i],
+            channels=[1, 0],
+            channel_axis=0,
+            normalize=True,
+        )[0]
 
         masks_n2s.append(masks)
         imgs_n2s.append(out)
@@ -139,8 +156,10 @@ def train_test_specialist(root, n_epochs=50, lr=5e-4, test=True):
     diam_test = dat["diam_test"]
 
     im_train = [
-        io.imread(Path(root / "noisy_test" / "care" / "source" /
-                       f"{i:03d}.tif"))[np.newaxis, :, :] for i in range(n_train)
+        io.imread(Path(root / "noisy_test" / "care" / "source" / f"{i:03d}.tif"))[
+            np.newaxis, :, :
+        ]
+        for i in range(n_train)
     ]
     im_train.extend(test_noisy)
     im_val = [
@@ -155,7 +174,7 @@ def train_test_specialist(root, n_epochs=50, lr=5e-4, test=True):
     val_loader = DataLoader(cells_val, batch_size=64, shuffle=True)
 
     loss_function = MSELoss()
-    masker = Masker(width=4, mode='interpolate')
+    masker = Masker(width=4, mode="interpolate")
 
     model = Unet().to(device)
     tic = time.time()
@@ -172,7 +191,7 @@ def train_test_specialist(root, n_epochs=50, lr=5e-4, test=True):
             loss.backward()
             optimizer.step()
             train_loss += (loss.item()) * len(batch)
-        train_loss /= (len(cells_train) / len(cells_val))
+        train_loss /= len(cells_train) / len(cells_val)
         if ep < 10 or ep % 5 == 0 or ep == n_epochs - 1:
             val_loss = 0
             model.eval()
@@ -183,14 +202,13 @@ def train_test_specialist(root, n_epochs=50, lr=5e-4, test=True):
                     net_output = model(net_input)
                     loss = loss_function(net_output * mask, noisy_images * mask)
                     val_loss += (loss.item()) * len(batch)
-            #val_loss /= len(cells_val)
+            # val_loss /= len(cells_val)
             print(
-                f"Loss ( {ep} ): \t train: {train_loss:.3f}, val: {val_loss:.3f}, {time.time()-tic:.2f}s"
+                f"Loss ( {ep} ): \t train: {train_loss:.3f}, val: {val_loss:.3f}, {time.time() - tic:.2f}s"
             )
     if not test:
         return val_loss
     else:
-
         imgs = []
         masks_n2s = []
         for i in range(len(test_noisy)):
@@ -200,14 +218,22 @@ def train_test_specialist(root, n_epochs=50, lr=5e-4, test=True):
             model.eval()
             with torch.no_grad():
                 simple_output = model(img)
-            out = simple_output.squeeze()[ysub[0]:ysub[-1] + 1,
-                                          xsub[0]:xsub[-1] + 1].cpu().numpy()
+            out = (
+                simple_output.squeeze()[ysub[0] : ysub[-1] + 1, xsub[0] : xsub[-1] + 1]
+                .cpu()
+                .numpy()
+            )
 
             imgs.append(out)
             seg_model = CellposeModel(gpu=True, model_type="cyto2")
 
-            masks = seg_model.eval(out, diameter=diam_test[i], channels=[1, 0],
-                                   channel_axis=0, normalize=True)[0]
+            masks = seg_model.eval(
+                out,
+                diameter=diam_test[i],
+                channels=[1, 0],
+                channel_axis=0,
+                normalize=True,
+            )[0]
 
             masks_n2s.append(masks)
 

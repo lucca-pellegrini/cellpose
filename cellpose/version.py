@@ -1,9 +1,11 @@
 """
 Copyright © 2025 Howard Hughes Medical Institute, Authored by Carsen Stringer , Michael Rariden and Marius Pachitariu.
 """
-from importlib.metadata import PackageNotFoundError, version
+
 import sys
+from importlib.metadata import PackageNotFoundError, version
 from platform import python_version
+
 import torch
 
 try:

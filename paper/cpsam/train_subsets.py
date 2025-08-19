@@ -1,15 +1,18 @@
-from segment_anything import sam_model_registry
-from cellpose import io, metrics, models, utils, train, transforms, resnet_torch, dynamics
-import time
-from tqdm import trange
-from torch import nn 
-import torch.nn.functional as F
-import torch
-import numpy as np
-from pathlib import Path
-from natsort import natsorted
 import argparse
 import os
+import time
+from pathlib import Path
+
+import numpy as np
+import torch
+import torch.nn.functional as F
+from natsort import natsorted
+from segment_anything import sam_model_registry
+from torch import nn
+from tqdm import trange
+
+from cellpose import (dynamics, io, metrics, models, resnet_torch, train,
+                      transforms, utils)
 
 torch.backends.cuda.matmul.allow_tf32 = True
 
