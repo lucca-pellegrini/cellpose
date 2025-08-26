@@ -74,6 +74,59 @@ class SobelEdgeDetection(ImageOperation):
             return magnitude
 
 
+class GaussianBlur(ImageOperation):
+    """Gaussian blur operation"""
+
+    @property
+    def name(self) -> str:
+        return "Gaussian Blur"
+
+    def apply(self, image: np.ndarray, sigma: float = 1.0, **kwargs: Any) -> np.ndarray:
+        """Apply Gaussian blur to smooth the image"""
+        if image.ndim == 3:  # Multi-channel image
+            result = np.zeros_like(image, dtype=np.float32)
+            for i in range(image.shape[-1]):
+                result[..., i] = ndimage.gaussian_filter(
+                    image[..., i].astype(np.float32), sigma=sigma
+                )
+            return result
+        else:  # Single channel image
+            return ndimage.gaussian_filter(image.astype(np.float32), sigma=sigma)
+
+    def get_parameters(self) -> Dict[str, Any]:
+        return {"sigma": 1.0}
+
+
+class LaplacianEdgeDetection(ImageOperation):
+    """Laplacian edge detection operation"""
+
+    @property
+    def name(self) -> str:
+        return "Laplacian Edge Detection"
+
+    def apply(self, image: np.ndarray, **kwargs: Any) -> np.ndarray:
+        """Apply Laplacian edge detection"""
+        if image.ndim == 3:  # Multi-channel image
+            result = np.zeros_like(image, dtype=np.float32)
+            for i in range(image.shape[-1]):
+                channel = image[..., i].astype(np.float32)
+                laplacian = ndimage.laplace(channel)
+                # Take absolute value and normalize
+                laplacian = np.abs(laplacian)
+                if laplacian.max() > 0:
+                    laplacian = (laplacian / laplacian.max() * 255).astype(np.float32)
+                result[..., i] = laplacian
+            return result
+        else:  # Single channel image
+            image_float = image.astype(np.float32)
+            laplacian = ndimage.laplace(image_float)
+            # Take absolute value and normalize
+            laplacian = np.abs(laplacian)
+            if laplacian.max() > 0:
+                laplacian = (laplacian / laplacian.max() * 255).astype(np.float32)
+            return laplacian
+
+
 class ImageOperationRegistry:
     """Registry for all available image operations"""
 
@@ -84,6 +137,8 @@ class ImageOperationRegistry:
     def _register_default_operations(self) -> None:
         """Register built-in image operations"""
         self.register(SobelEdgeDetection())
+        self.register(GaussianBlur())
+        self.register(LaplacianEdgeDetection())
 
     def register(self, operation: ImageOperation) -> None:
         """Register a new image operation
