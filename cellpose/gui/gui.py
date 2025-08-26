@@ -37,6 +37,7 @@ from scipy.stats import mode
 from superqt import QCollapsible, QRangeSlider
 
 from .. import core, dynamics, models, train, version
+from ..image_operations import image_operation_registry
 from ..io import get_image_files, imread, imsave
 from ..models import normalize_default
 from ..plot import disk
@@ -1317,6 +1318,40 @@ class MainW(QMainWindow):
         self.additional_seg_settings_qcollapsible._toggle_btn.setChecked(False)
 
         b += 1
+        self.imageOpsBox = QGroupBox("Image Operations")
+        self.imageOpsBoxG = QGridLayout()
+        self.imageOpsBox.setLayout(self.imageOpsBoxG)
+        self.l0.addWidget(self.imageOpsBox, b, 0, 1, 9)
+        self.imageOpsBox.setFont(self.boldfont)
+
+        widget_row = 0
+
+        # Image operation dropdown
+        self.ImageOpsChoose = QComboBox()
+        self.ImageOpsChoose.setFont(self.medfont)
+        self.ImageOpsChoose.addItems(
+            ["Select operation..."] + image_operation_registry.get_operation_names()
+        )
+        self.ImageOpsChoose.setFixedWidth(175)
+        self.ImageOpsChoose.setToolTip(
+            "Choose an image operation to apply to the current image"
+        )
+        self.imageOpsBoxG.addWidget(self.ImageOpsChoose, widget_row, 0, 1, 8)
+
+        # Run image operation button
+        self.ImageOpsButton = QPushButton("Run")
+        self.ImageOpsButton.setFont(self.medfont)
+        self.ImageOpsButton.setFixedWidth(35)
+        self.ImageOpsButton.clicked.connect(self.run_image_operation)
+        self.ImageOpsButton.setEnabled(False)
+        self.imageOpsBoxG.addWidget(self.ImageOpsButton, widget_row, 8, 1, 1)
+
+        # Enable button when operation selected
+        self.ImageOpsChoose.currentTextChanged.connect(
+            self.image_operation_selection_changed
+        )
+
+        b += 1
         self.modelBox = QGroupBox("user-trained models")
         self.modelBoxG = QGridLayout()
         self.modelBox.setLayout(self.modelBoxG)
@@ -2525,6 +2560,42 @@ class MainW(QMainWindow):
         normalize_params = {**normalize_default, **normalize_params}
 
         return normalize_params
+
+    def image_operation_selection_changed(self):
+        """Enable/disable Run button based on selection"""
+        selected = self.ImageOpsChoose.currentText()
+        self.ImageOpsButton.setEnabled(selected != "Select operation...")
+
+    def run_image_operation(self):
+        """Execute selected image operation"""
+        if not hasattr(self, "stack") or self.stack is None:
+            print("No image loaded for image operation")
+            return
+
+        selected_name = self.ImageOpsChoose.currentText()
+        if selected_name == "Select operation...":
+            return
+
+        operation = image_operation_registry.get_operation(selected_name)
+        if operation is None:
+            print(f"Operation {selected_name} not found")
+            return
+
+        try:
+            # Apply operation to current image stack
+            processed_stack = np.zeros_like(self.stack)
+
+            for z in range(self.stack.shape[0]):
+                processed_stack[z] = operation.apply(self.stack[z])
+
+            # Update the image stack and refresh display
+            self.stack = processed_stack
+            self.update_plot()
+
+            print(f"Applied {selected_name} image operation")
+
+        except Exception as e:
+            print(f"Error applying {selected_name}: {str(e)}")
 
     def compute_saturation_if_checked(self):
         if self.autobtn.isChecked():
